@@ -34,6 +34,7 @@ export type Stylist = {
   photo_url: string | null
   active: boolean
   sort_order: number
+  appointment_interval_minutes: number
 }
 
 export type StylistAvailability = {

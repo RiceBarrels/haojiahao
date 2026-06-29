@@ -166,9 +166,21 @@ export default async function HomePage({ params }: HomePageProps) {
             {stylists.map((stylist) => (
               <Card key={stylist.id} className="border-border/80 bg-card">
                 <CardContent className="p-5">
-                  <div className="mb-4 grid size-12 place-items-center rounded-lg bg-secondary text-secondary-foreground">
-                    <Scissors className="size-5" />
-                  </div>
+                  {stylist.photo_url ? (
+                    <div className="relative mb-4 aspect-[4/3] overflow-hidden rounded-lg bg-secondary">
+                      <Image
+                        src={stylist.photo_url}
+                        alt={locale === "zh" ? stylist.name_zh : stylist.name_en}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 360px"
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="mb-4 grid size-12 place-items-center rounded-lg bg-secondary text-secondary-foreground">
+                      <Scissors className="size-5" />
+                    </div>
+                  )}
                   <h3 className="font-heading text-2xl font-semibold">
                     {locale === "zh" ? stylist.name_zh : stylist.name_en}
                   </h3>

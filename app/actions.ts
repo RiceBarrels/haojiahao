@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
+import type { SupabaseClient } from "@supabase/supabase-js"
 import { z } from "zod"
 
 import { createClient } from "@/lib/supabase/server"
@@ -18,6 +19,8 @@ const longTextSchema = z.string().trim().max(600)
 const phoneSchema = z.string().trim().min(7).max(30)
 const emailSchema = z.string().trim().email().max(254).toLowerCase()
 const otpSchema = z.string().trim().regex(/^\d{6}$/)
+const maxStylistPhotoBytes = 10 * 1024 * 1024
+const stylistPhotoBucket = "stylist-photos"
 const timeSchema = z
   .string()
   .trim()
@@ -317,7 +320,9 @@ async function getAdminNotificationEmails() {
     })
   )
 
-  return parseEmailList(...configuredEmails, ...adminEmails)
+  const resolvedAdminEmails = parseEmailList(...adminEmails)
+
+  return resolvedAdminEmails.length ? resolvedAdminEmails : configuredEmails
 }
 
 function parseEmailList(...values: Array<string | null | undefined>) {
@@ -329,6 +334,48 @@ function parseEmailList(...values: Array<string | null | undefined>) {
         .filter((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
     )
   )
+}
+
+function isUploadedFile(value: FormDataEntryValue | null): value is File {
+  return typeof File !== "undefined" && value instanceof File && value.size > 0
+}
+
+function getPhotoExtension(file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase()
+
+  if (extension && /^[a-z0-9]{2,10}$/.test(extension)) {
+    return extension
+  }
+
+  return file.type.split("/").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "photo"
+}
+
+async function uploadStylistPhoto(
+  supabase: SupabaseClient,
+  stylistId: string,
+  file: File
+) {
+  if (file.size > maxStylistPhotoBytes) {
+    throw new Error("Photo file is too large.")
+  }
+
+  const extension = getPhotoExtension(file)
+  const path = `${stylistId}/${Date.now()}-${crypto.randomUUID()}.${extension}`
+  const { error } = await supabase.storage
+    .from(stylistPhotoBucket)
+    .upload(path, file, {
+      cacheControl: "31536000",
+      contentType: file.type || undefined,
+      upsert: false,
+    })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const { data } = supabase.storage.from(stylistPhotoBucket).getPublicUrl(path)
+
+  return data.publicUrl
 }
 
 export async function createAppointmentAction(
@@ -486,6 +533,7 @@ export async function upsertServiceAction(formData: FormData) {
 
 export async function upsertStylistAction(formData: FormData) {
   const locale = actionLocale(formData)
+  const photoFile = formData.get("photoFile")
   const parsed = z
     .object({
       id: z.string().optional(),
@@ -493,8 +541,14 @@ export async function upsertStylistAction(formData: FormData) {
       nameEn: localizedTextSchema,
       bioZh: longTextSchema,
       bioEn: longTextSchema,
-      photoUrl: z.string().trim().url().optional().or(z.literal("")),
+      currentPhotoUrl: z.string().trim().url().optional().or(z.literal("")),
       sortOrder: z.coerce.number().int().min(0).max(10000),
+      appointmentIntervalMinutes: z.coerce
+        .number()
+        .int()
+        .min(10)
+        .max(240)
+        .refine((value) => value % 5 === 0),
       active: z.string().optional(),
     })
     .safeParse(Object.fromEntries(formData))
@@ -504,20 +558,25 @@ export async function upsertStylistAction(formData: FormData) {
   }
 
   const { supabase } = await requireAdmin(locale)
+  const stylistId = parsed.data.id || crypto.randomUUID()
+  const uploadedPhotoUrl = isUploadedFile(photoFile)
+    ? await uploadStylistPhoto(supabase, stylistId, photoFile)
+    : null
   const payload = {
     name_zh: parsed.data.nameZh,
     name_en: parsed.data.nameEn,
     bio_zh: parsed.data.bioZh,
     bio_en: parsed.data.bioEn,
-    photo_url: parsed.data.photoUrl || null,
+    photo_url: uploadedPhotoUrl || parsed.data.currentPhotoUrl || null,
     sort_order: parsed.data.sortOrder,
+    appointment_interval_minutes: parsed.data.appointmentIntervalMinutes,
     active: parsed.data.active === "on",
   }
 
   const id = parsed.data.id
   const query = id
     ? supabase.from("stylists").update(payload).eq("id", id)
-    : supabase.from("stylists").insert(payload)
+    : supabase.from("stylists").insert({ id: stylistId, ...payload })
 
   const { error } = await query
 

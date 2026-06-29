@@ -57,7 +57,7 @@ export const getPublicSalonData = cache(async (): Promise<PublicSalonData> => {
       supabase
         .from("stylists")
         .select(
-          "id, name_zh, name_en, bio_zh, bio_en, photo_url, active, sort_order"
+          "id, name_zh, name_en, bio_zh, bio_en, photo_url, active, sort_order, appointment_interval_minutes"
         )
         .eq("active", true)
         .order("sort_order", { ascending: true }),
@@ -151,7 +151,7 @@ export async function getAdminDashboardData() {
     supabase
       .from("stylists")
       .select(
-        "id, name_zh, name_en, bio_zh, bio_en, photo_url, active, sort_order"
+        "id, name_zh, name_en, bio_zh, bio_en, photo_url, active, sort_order, appointment_interval_minutes"
       )
       .order("sort_order", { ascending: true }),
     supabase

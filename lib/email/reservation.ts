@@ -31,12 +31,7 @@ export async function sendReservationEmails(
 ): Promise<ReservationEmailResult> {
   const apiKey = process.env.RESEND_API_KEY
   const fromEmail = process.env.RESEND_FROM_EMAIL
-  const notificationEmails = normalizeEmails([
-    ...adminNotificationEmails,
-    ...(process.env.RESEND_NOTIFICATION_EMAILS ?? "").split(","),
-    process.env.RESEND_NOTIFICATION_EMAIL,
-    fromEmail,
-  ])
+  const notificationEmails = normalizeEmails(adminNotificationEmails)
 
   if (!apiKey || !fromEmail || notificationEmails.length === 0) {
     return { sent: false, reason: "missing_config" }

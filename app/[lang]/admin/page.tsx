@@ -1,10 +1,15 @@
+import Image from "next/image"
 import Link from "next/link"
 import type { ReactNode } from "react"
 import {
+  ArrowRight,
   CalendarCheck2,
+  CalendarClock,
+  Clock3,
   LockKeyhole,
   Plus,
   Scissors,
+  Settings2,
   Users,
 } from "lucide-react"
 
@@ -82,6 +87,12 @@ export default async function AdminPage({ params }: AdminPageProps) {
   const pendingCount = data.appointments.filter(
     (appointment) => appointment.status === "pending"
   ).length
+  const today = getNewYorkDateValue()
+  const todayCount = data.appointments.filter(
+    (appointment) =>
+      appointment.appointment_date === today &&
+      appointment.status !== "cancelled"
+  ).length
   const activeServices = data.services.filter((service) => service.active).length
   const activeStylists = data.stylists.filter((stylist) => stylist.active).length
 
@@ -111,11 +122,18 @@ export default async function AdminPage({ params }: AdminPageProps) {
           </Link>
         </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <div className="mt-8 grid gap-4 md:grid-cols-4">
           <MetricCard
             icon={<CalendarCheck2 className="size-5" />}
             label={dict.admin.dashboard.pendingAppointments}
             value={pendingCount}
+          />
+          <MetricCard
+            icon={<CalendarClock className="size-5" />}
+            label={
+              locale === "zh" ? "今日预约" : "Today's appointments"
+            }
+            value={todayCount}
           />
           <MetricCard
             icon={<Scissors className="size-5" />}
@@ -128,6 +146,16 @@ export default async function AdminPage({ params }: AdminPageProps) {
             value={activeStylists}
           />
         </div>
+
+        <DashboardOverview
+          appointments={data.appointments}
+          services={data.services}
+          stylists={data.stylists}
+          availability={data.availability}
+          today={today}
+          locale={locale}
+          dict={dict}
+        />
 
         <div className="mt-8 grid gap-8">
           <AppointmentsSection
@@ -160,6 +188,308 @@ export default async function AdminPage({ params }: AdminPageProps) {
         </div>
       </div>
     </main>
+  )
+}
+
+function DashboardOverview({
+  appointments,
+  services,
+  stylists,
+  availability,
+  today,
+  locale,
+  dict,
+}: {
+  appointments: AppointmentWithRelations[]
+  services: Service[]
+  stylists: Stylist[]
+  availability: StylistAvailability[]
+  today: string
+  locale: Locale
+  dict: Dictionary
+}) {
+  const activeAppointments = appointments
+    .filter((appointment) => appointment.status !== "cancelled")
+    .sort(compareAppointments)
+  const pendingAppointments = activeAppointments
+    .filter((appointment) => appointment.status === "pending")
+    .slice(0, 5)
+  const todayAppointments = activeAppointments
+    .filter((appointment) => appointment.appointment_date === today)
+    .slice(0, 5)
+  const activeServices = services.filter((service) => service.active).length
+  const activeStylists = stylists.filter((stylist) => stylist.active).length
+  const activeAvailability = availability.filter((item) => item.active)
+
+  return (
+    <section className="mt-8 grid gap-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <DashboardShortcut
+          href="#appointments"
+          icon={<CalendarCheck2 className="size-4" />}
+          label={dict.admin.nav.appointments}
+          value={`${pendingAppointments.length} ${
+            locale === "zh" ? "待确认" : "pending"
+          }`}
+        />
+        <DashboardShortcut
+          href="#services"
+          icon={<Scissors className="size-4" />}
+          label={dict.admin.nav.services}
+          value={`${activeServices} ${
+            locale === "zh" ? "启用" : "active"
+          }`}
+        />
+        <DashboardShortcut
+          href="#stylists"
+          icon={<Users className="size-4" />}
+          label={dict.admin.nav.stylists}
+          value={`${activeStylists} ${
+            locale === "zh" ? "可预约" : "bookable"
+          }`}
+        />
+        <DashboardShortcut
+          href="#availability"
+          icon={<Clock3 className="size-4" />}
+          label={dict.admin.nav.availability}
+          value={`${activeAvailability.length} ${
+            locale === "zh" ? "排班" : "rows"
+          }`}
+        />
+        <DashboardShortcut
+          href="#time-off"
+          icon={<Settings2 className="size-4" />}
+          label={dict.admin.nav.timeOff}
+          value={locale === "zh" ? "休息设置" : "time off"}
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_1.1fr_0.8fr]">
+        <AppointmentQueueCard
+          title={locale === "zh" ? "需要处理" : "Needs attention"}
+          description={
+            locale === "zh"
+              ? "新的预约会先进入待确认状态。"
+              : "New reservations land here first."
+          }
+          emptyText={
+            locale === "zh"
+              ? "没有待确认预约。"
+              : "No pending appointments."
+          }
+          appointments={pendingAppointments}
+          locale={locale}
+          dict={dict}
+        />
+        <AppointmentQueueCard
+          title={locale === "zh" ? "今日时间线" : "Today timeline"}
+          description={
+            locale === "zh"
+              ? `${today} 的预约安排。`
+              : `Appointments scheduled for ${today}.`
+          }
+          emptyText={
+            locale === "zh"
+              ? "今天还没有预约。"
+              : "No appointments today."
+          }
+          appointments={todayAppointments}
+          locale={locale}
+          dict={dict}
+        />
+        <ScheduleSnapshotCard
+          stylists={stylists}
+          availability={availability}
+          locale={locale}
+          dict={dict}
+        />
+      </div>
+    </section>
+  )
+}
+
+function DashboardShortcut({
+  href,
+  icon,
+  label,
+  value,
+}: {
+  href: string
+  icon: ReactNode
+  label: string
+  value: string
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex min-h-20 items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm transition-colors hover:border-[var(--salon-gold)]/60 hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <span className="flex items-center gap-3">
+        <span className="grid size-9 place-items-center rounded-lg bg-secondary text-secondary-foreground">
+          {icon}
+        </span>
+        <span>
+          <span className="block font-medium">{label}</span>
+          <span className="mt-1 block text-xs text-muted-foreground">
+            {value}
+          </span>
+        </span>
+      </span>
+      <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+    </Link>
+  )
+}
+
+function AppointmentQueueCard({
+  title,
+  description,
+  emptyText,
+  appointments,
+  locale,
+  dict,
+}: {
+  title: string
+  description: string
+  emptyText: string
+  appointments: AppointmentWithRelations[]
+  locale: Locale
+  dict: Dictionary
+}) {
+  return (
+    <Card className="border-border/80 bg-card/95">
+      <CardHeader>
+        <CardTitle className="font-heading text-2xl">{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {appointments.length ? (
+          <div className="grid gap-2">
+            {appointments.map((appointment) => (
+              <AppointmentQueueItem
+                key={appointment.id}
+                appointment={appointment}
+                locale={locale}
+                dict={dict}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-lg border border-dashed border-border bg-background/50 p-4 text-sm text-muted-foreground">
+            {emptyText}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function AppointmentQueueItem({
+  appointment,
+  locale,
+  dict,
+}: {
+  appointment: AppointmentWithRelations
+  locale: Locale
+  dict: Dictionary
+}) {
+  return (
+    <div className="grid gap-3 rounded-lg border border-border bg-background/55 p-3 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+      <div className="grid size-11 place-items-center rounded-lg bg-secondary text-sm font-semibold text-secondary-foreground">
+        {formatTime(appointment.start_time)}
+      </div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium">{appointment.customer_name}</p>
+          <StatusPill status={appointment.status} dict={dict} />
+        </div>
+        <p className="mt-1 truncate text-xs text-muted-foreground">
+          {appointment.appointment_date} ·{" "}
+          {appointment.services
+            ? localizedName(appointment.services, locale)
+            : "-"}{" "}
+          ·{" "}
+          {appointment.stylists
+            ? localizedName(appointment.stylists, locale)
+            : "-"}
+        </p>
+      </div>
+      <Link
+        href="#appointments"
+        className={buttonVariants({ variant: "outline", size: "sm" })}
+      >
+        {dict.common.view}
+      </Link>
+    </div>
+  )
+}
+
+function ScheduleSnapshotCard({
+  stylists,
+  availability,
+  locale,
+  dict,
+}: {
+  stylists: Stylist[]
+  availability: StylistAvailability[]
+  locale: Locale
+  dict: Dictionary
+}) {
+  const rows = stylists
+    .filter((stylist) => stylist.active)
+    .map((stylist) => {
+      const activeRows = availability.filter(
+        (item) => item.stylist_id === stylist.id && item.active
+      )
+
+      return {
+        stylist,
+        activeDays: new Set(activeRows.map((item) => item.day_of_week)).size,
+      }
+    })
+
+  return (
+    <Card className="border-border/80 bg-card/95">
+      <CardHeader>
+        <CardTitle className="font-heading text-2xl">
+          {locale === "zh" ? "发型师排班" : "Stylist schedule"}
+        </CardTitle>
+        <CardDescription>
+          {locale === "zh"
+            ? "快速查看谁可预约，以及预约时间间隔。"
+            : "See who can be booked and their slot interval."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {rows.length ? (
+          <div className="grid gap-3">
+            {rows.map(({ stylist, activeDays }) => (
+              <div
+                key={stylist.id}
+                className="grid gap-2 rounded-lg border border-border bg-background/55 p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{localizedName(stylist, locale)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {activeDays} {locale === "zh" ? "天可预约" : "bookable days"}
+                    </p>
+                  </div>
+                  <Badge variant="secondary">
+                    {stylist.appointment_interval_minutes} {dict.common.minutes}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-lg border border-dashed border-border bg-background/50 p-4 text-sm text-muted-foreground">
+            {locale === "zh"
+              ? "还没有启用的发型师。"
+              : "No active stylists yet."}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -572,13 +902,52 @@ function StylistForm({
           />
         </Field>
       </div>
-      <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
-        <Field label={dict.admin.labels.photoUrl} id={`stylist-photo-${stylist?.id ?? "new"}`}>
+      <input
+        type="hidden"
+        name="currentPhotoUrl"
+        value={stylist?.photo_url ?? ""}
+      />
+      <div className="grid gap-3 sm:grid-cols-[1fr_9rem_10rem]">
+        <Field
+          label={dict.admin.labels.photoUpload}
+          id={`stylist-photo-${stylist?.id ?? "new"}`}
+        >
+          {stylist?.photo_url ? (
+            <div className="mb-2 flex items-center gap-3 rounded-lg border border-border bg-background/55 p-2">
+              <div className="relative size-14 overflow-hidden rounded-lg bg-secondary">
+                <Image
+                  src={stylist.photo_url}
+                  alt={localizedName(stylist, locale)}
+                  fill
+                  sizes="56px"
+                  className="object-cover"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {locale === "zh" ? "已上传照片" : "Current photo"}
+              </p>
+            </div>
+          ) : null}
           <Input
             id={`stylist-photo-${stylist?.id ?? "new"}`}
-            name="photoUrl"
-            type="url"
-            defaultValue={stylist?.photo_url ?? ""}
+            name="photoFile"
+            type="file"
+            accept="image/*,.heic,.heif,.avif,.webp,.tif,.tiff"
+          />
+        </Field>
+        <Field
+          label={dict.admin.labels.appointmentInterval}
+          id={`stylist-interval-${stylist?.id ?? "new"}`}
+        >
+          <Input
+            id={`stylist-interval-${stylist?.id ?? "new"}`}
+            name="appointmentIntervalMinutes"
+            type="number"
+            min={10}
+            max={240}
+            step={5}
+            defaultValue={stylist?.appointment_interval_minutes ?? 60}
+            required
           />
         </Field>
         <Field label={dict.admin.labels.sortOrder} id={`stylist-sort-${stylist?.id ?? "new"}`}>
@@ -924,6 +1293,48 @@ function ActiveCheckbox({
       {label}
     </label>
   )
+}
+
+function StatusPill({
+  status,
+  dict,
+}: {
+  status: AppointmentStatus
+  dict: Dictionary
+}) {
+  const variant =
+    status === "cancelled"
+      ? "destructive"
+      : status === "pending"
+        ? "outline"
+        : "secondary"
+
+  return <Badge variant={variant}>{dict.booking.status[status]}</Badge>
+}
+
+function compareAppointments(
+  first: AppointmentWithRelations,
+  second: AppointmentWithRelations
+) {
+  return (
+    `${first.appointment_date} ${first.start_time}`.localeCompare(
+      `${second.appointment_date} ${second.start_time}`
+    ) || first.customer_name.localeCompare(second.customer_name)
+  )
+}
+
+function getNewYorkDateValue() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date())
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970"
+  const month = parts.find((part) => part.type === "month")?.value ?? "01"
+  const day = parts.find((part) => part.type === "day")?.value ?? "01"
+
+  return `${year}-${month}-${day}`
 }
 
 function localizedName(
