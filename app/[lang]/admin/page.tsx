@@ -4,7 +4,10 @@ import type { ReactNode } from "react"
 import {
   CalendarCheck2,
   CalendarClock,
+  Clock3,
   LockKeyhole,
+  Mail,
+  Phone,
   Plus,
   Scissors,
   Users,
@@ -480,6 +483,8 @@ function AppointmentsSection({
   locale: Locale
   dict: Dictionary
 }) {
+  const groupedAppointments = groupAppointmentsByDate(appointments)
+
   return (
     <Card id="appointments" className="border-border/80 bg-card/95">
       <CardHeader>
@@ -494,83 +499,36 @@ function AppointmentsSection({
       </CardHeader>
       <CardContent>
         {appointments.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{dict.admin.labels.customer}</TableHead>
-                <TableHead>{dict.admin.labels.service}</TableHead>
-                <TableHead>{dict.admin.labels.stylist}</TableHead>
-                <TableHead>{dict.admin.labels.appointmentDate}</TableHead>
-                <TableHead>{dict.common.time}</TableHead>
-                <TableHead>{dict.admin.labels.customerEmail}</TableHead>
-                <TableHead>{dict.admin.labels.customerPhone}</TableHead>
-                <TableHead>{dict.common.status}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {appointments.map((appointment) => (
-                <TableRow key={appointment.id}>
-                  <TableCell>
-                    <div>
-                      <p>{appointment.customer_name}</p>
-                      {appointment.profiles?.display_name ? (
-                        <p className="text-xs text-muted-foreground">
-                          {appointment.profiles.display_name}
-                        </p>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {appointment.services
-                      ? localizedName(appointment.services, locale)
-                      : "-"}
-                    {appointment.services ? (
-                      <p className="text-xs text-muted-foreground">
-                        {formatPrice(appointment.services.price_cents, locale)}
-                      </p>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
-                    {appointment.stylists
-                      ? localizedName(appointment.stylists, locale)
-                      : "-"}
-                  </TableCell>
-                  <TableCell>{appointment.appointment_date}</TableCell>
-                  <TableCell>{formatTime(appointment.start_time)}</TableCell>
-                  <TableCell>{appointment.customer_email}</TableCell>
-                  <TableCell>{appointment.customer_phone}</TableCell>
-                  <TableCell>
-                    <form
-                      action={updateAppointmentStatusAction}
-                      className="flex min-w-56 items-center gap-2"
-                    >
-                      <input type="hidden" name="locale" value={locale} />
-                      <input
-                        type="hidden"
-                        name="appointmentId"
-                        value={appointment.id}
-                      />
-                      <select
-                        name="status"
-                        defaultValue={appointment.status}
-                        className={selectClassName}
-                        aria-label={dict.common.status}
-                      >
-                        {appointmentStatuses.map((status) => (
-                          <option key={status} value={status}>
-                            {dict.booking.status[status]}
-                          </option>
-                        ))}
-                      </select>
-                      <Button size="sm" type="submit">
-                        {dict.common.save}
-                      </Button>
-                    </form>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="grid gap-5">
+            {groupedAppointments.map((group) => (
+              <section key={group.date} className="grid gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/55 px-4 py-3">
+                  <div>
+                    <h3 className="font-medium">
+                      {formatAppointmentDateHeading(group.date, locale)}
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {group.items.length} {dict.admin.nav.appointments}
+                    </p>
+                  </div>
+                  <Badge variant="secondary">{group.date}</Badge>
+                </div>
+                <ol
+                  className="grid gap-0"
+                  aria-label={`${dict.admin.nav.appointments} ${group.date}`}
+                >
+                  {group.items.map((appointment) => (
+                    <AppointmentTimelineItem
+                      key={appointment.id}
+                      appointment={appointment}
+                      locale={locale}
+                      dict={dict}
+                    />
+                  ))}
+                </ol>
+              </section>
+            ))}
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground">
             {dict.booking.messages.noAppointments}
@@ -578,6 +536,160 @@ function AppointmentsSection({
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function AppointmentTimelineItem({
+  appointment,
+  locale,
+  dict,
+}: {
+  appointment: AppointmentWithRelations
+  locale: Locale
+  dict: Dictionary
+}) {
+  const serviceName = appointment.services
+    ? localizedName(appointment.services, locale)
+    : "-"
+  const stylistName = appointment.stylists
+    ? localizedName(appointment.stylists, locale)
+    : "-"
+
+  return (
+    <li className="grid grid-cols-[4rem_1fr] gap-3 last:[&_[data-appointment-line]]:hidden">
+      <div className="flex flex-col items-center" aria-hidden="true">
+        <span className="grid h-11 w-16 place-items-center rounded-lg border border-border bg-card text-sm font-semibold text-foreground">
+          {formatTime(appointment.start_time)}
+        </span>
+        <span
+          data-appointment-line
+          className="my-2 min-h-5 w-px flex-1 bg-border"
+        />
+      </div>
+      <article className="mb-4 rounded-lg border border-border bg-background/55 p-4 shadow-[0_10px_30px_rgba(45,52,54,0.05)]">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-medium">{appointment.customer_name}</h3>
+              <StatusPill status={appointment.status} dict={dict} />
+            </div>
+            {appointment.profiles?.display_name ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {appointment.profiles.display_name}
+              </p>
+            ) : null}
+          </div>
+          <form
+            action={updateAppointmentStatusAction}
+            className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-64 sm:flex-row sm:items-center"
+          >
+            <input type="hidden" name="locale" value={locale} />
+            <input type="hidden" name="appointmentId" value={appointment.id} />
+            <select
+              name="status"
+              defaultValue={appointment.status}
+              className={selectClassName}
+              aria-label={dict.common.status}
+            >
+              {appointmentStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {dict.booking.status[status]}
+                </option>
+              ))}
+            </select>
+            <Button size="sm" type="submit">
+              {dict.common.save}
+            </Button>
+          </form>
+        </div>
+
+        <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+          <TimelineDetail
+            label={dict.admin.labels.service}
+            value={serviceName}
+            subValue={
+              appointment.services
+                ? formatPrice(appointment.services.price_cents, locale)
+                : undefined
+            }
+          />
+          <TimelineDetail
+            label={dict.admin.labels.stylist}
+            value={stylistName}
+          />
+          <TimelineDetail
+            label={dict.common.time}
+            value={`${appointment.appointment_date} ${formatTime(
+              appointment.start_time
+            )}`}
+            icon={<Clock3 className="size-3.5 text-[var(--salon-gold)]" />}
+          />
+          <TimelineDetail
+            label={dict.admin.labels.customerPhone}
+            value={appointment.customer_phone}
+            href={`tel:${appointment.customer_phone}`}
+            icon={<Phone className="size-3.5 text-[var(--salon-gold)]" />}
+          />
+        </div>
+        <div className="mt-3 flex min-w-0 items-center gap-2 rounded-lg bg-card/70 px-3 py-2 text-sm text-muted-foreground">
+          <Mail className="size-3.5 shrink-0 text-[var(--salon-gold)]" />
+          <a
+            href={`mailto:${appointment.customer_email}`}
+            className="min-w-0 break-all hover:text-foreground"
+          >
+            {appointment.customer_email}
+          </a>
+        </div>
+      </article>
+    </li>
+  )
+}
+
+function TimelineDetail({
+  label,
+  value,
+  subValue,
+  href,
+  icon,
+}: {
+  label: string
+  value: string
+  subValue?: string
+  href?: string
+  icon?: ReactNode
+}) {
+  const content = (
+    <>
+      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {icon}
+        {label}
+      </span>
+      <span className="mt-1 block break-words font-medium text-foreground">
+        {value}
+      </span>
+      {subValue ? (
+        <span className="mt-1 block text-xs text-muted-foreground">
+          {subValue}
+        </span>
+      ) : null}
+    </>
+  )
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        className="rounded-lg border border-border bg-card/70 p-3 transition-colors hover:border-primary/50 hover:bg-secondary/45"
+      >
+        {content}
+      </a>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card/70 p-3">
+      {content}
+    </div>
   )
 }
 
@@ -1325,6 +1437,47 @@ function compareAppointments(
       `${second.appointment_date} ${second.start_time}`
     ) || first.customer_name.localeCompare(second.customer_name)
   )
+}
+
+function groupAppointmentsByDate(appointments: AppointmentWithRelations[]) {
+  const groups = new Map<string, AppointmentWithRelations[]>()
+
+  for (const appointment of appointments) {
+    const currentItems = groups.get(appointment.appointment_date) ?? []
+    currentItems.push(appointment)
+    groups.set(appointment.appointment_date, currentItems)
+  }
+
+  return Array.from(groups.entries())
+    .sort(([firstDate], [secondDate]) => firstDate.localeCompare(secondDate))
+    .map(([date, items]) => ({
+      date,
+      items: items.toSorted(compareAppointments),
+    }))
+}
+
+function formatAppointmentDateHeading(dateValue: string, locale: Locale) {
+  const date = parseDateInput(dateValue)
+
+  if (!date) {
+    return dateValue
+  }
+
+  return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  }).format(date)
+}
+
+function parseDateInput(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null
+  }
+
+  const [year, month, day] = value.split("-").map(Number)
+
+  return new Date(year, month - 1, day)
 }
 
 function getNewYorkDateValue() {

@@ -188,6 +188,14 @@ export const enDictionary = {
       price: "Price",
       duration: "Duration",
     },
+    timeline: {
+      title: "Available time timeline",
+      loading: "Finding available times...",
+      selected: "Selected",
+      available: "Available",
+      emptyTitle: "No available times",
+      noSelection: "Choose a time on the timeline.",
+    },
     status: {
       pending: "Pending",
       confirmed: "Confirmed",

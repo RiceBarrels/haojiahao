@@ -188,6 +188,14 @@ export const zhDictionary = {
       price: "价格",
       duration: "时长",
     },
+    timeline: {
+      title: "当天可预约时间线",
+      loading: "正在查找可预约时间...",
+      selected: "已选择",
+      available: "可预约",
+      emptyTitle: "没有可预约时间",
+      noSelection: "请选择时间线上的一个时段。",
+    },
     status: {
       pending: "待确认",
       confirmed: "已确认",
