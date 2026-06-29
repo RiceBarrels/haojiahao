@@ -2,14 +2,11 @@ import Image from "next/image"
 import Link from "next/link"
 import type { ReactNode } from "react"
 import {
-  ArrowRight,
   CalendarCheck2,
   CalendarClock,
-  Clock3,
   LockKeyhole,
   Plus,
   Scissors,
-  Settings2,
   Users,
 } from "lucide-react"
 
@@ -32,7 +29,6 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
 import {
   Table,
   TableBody,
@@ -73,6 +69,11 @@ const appointmentStatuses = [
 
 const selectClassName =
   "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+const editPanelClassName =
+  "group rounded-lg border border-border bg-background/55 transition-colors open:bg-background/80"
+const editSummaryClassName =
+  "flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"
+const editFormClassName = "grid gap-4 border-t border-border p-4"
 
 export default async function AdminPage({ params }: AdminPageProps) {
   const { lang } = await params
@@ -149,7 +150,6 @@ export default async function AdminPage({ params }: AdminPageProps) {
 
         <DashboardOverview
           appointments={data.appointments}
-          services={data.services}
           stylists={data.stylists}
           availability={data.availability}
           today={today}
@@ -193,7 +193,6 @@ export default async function AdminPage({ params }: AdminPageProps) {
 
 function DashboardOverview({
   appointments,
-  services,
   stylists,
   availability,
   today,
@@ -201,7 +200,6 @@ function DashboardOverview({
   dict,
 }: {
   appointments: AppointmentWithRelations[]
-  services: Service[]
   stylists: Stylist[]
   availability: StylistAvailability[]
   today: string
@@ -217,53 +215,10 @@ function DashboardOverview({
   const todayAppointments = activeAppointments
     .filter((appointment) => appointment.appointment_date === today)
     .slice(0, 5)
-  const activeServices = services.filter((service) => service.active).length
-  const activeStylists = stylists.filter((stylist) => stylist.active).length
-  const activeAvailability = availability.filter((item) => item.active)
+  const activeStylists = stylists.filter((stylist) => stylist.active)
 
   return (
     <section className="mt-8 grid gap-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <DashboardShortcut
-          href="#appointments"
-          icon={<CalendarCheck2 className="size-4" />}
-          label={dict.admin.nav.appointments}
-          value={`${pendingAppointments.length} ${
-            locale === "zh" ? "待确认" : "pending"
-          }`}
-        />
-        <DashboardShortcut
-          href="#services"
-          icon={<Scissors className="size-4" />}
-          label={dict.admin.nav.services}
-          value={`${activeServices} ${
-            locale === "zh" ? "启用" : "active"
-          }`}
-        />
-        <DashboardShortcut
-          href="#stylists"
-          icon={<Users className="size-4" />}
-          label={dict.admin.nav.stylists}
-          value={`${activeStylists} ${
-            locale === "zh" ? "可预约" : "bookable"
-          }`}
-        />
-        <DashboardShortcut
-          href="#availability"
-          icon={<Clock3 className="size-4" />}
-          label={dict.admin.nav.availability}
-          value={`${activeAvailability.length} ${
-            locale === "zh" ? "排班" : "rows"
-          }`}
-        />
-        <DashboardShortcut
-          href="#time-off"
-          icon={<Settings2 className="size-4" />}
-          label={dict.admin.nav.timeOff}
-          value={locale === "zh" ? "休息设置" : "time off"}
-        />
-      </div>
-
       <div className="grid gap-4 xl:grid-cols-[1.1fr_1.1fr_0.8fr]">
         <AppointmentQueueCard
           title={locale === "zh" ? "需要处理" : "Needs attention"}
@@ -298,45 +253,13 @@ function DashboardOverview({
           dict={dict}
         />
         <ScheduleSnapshotCard
-          stylists={stylists}
+          stylists={activeStylists}
           availability={availability}
           locale={locale}
           dict={dict}
         />
       </div>
     </section>
-  )
-}
-
-function DashboardShortcut({
-  href,
-  icon,
-  label,
-  value,
-}: {
-  href: string
-  icon: ReactNode
-  label: string
-  value: string
-}) {
-  return (
-    <Link
-      href={href}
-      className="group flex min-h-20 items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm transition-colors hover:border-[var(--salon-gold)]/60 hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-    >
-      <span className="flex items-center gap-3">
-        <span className="grid size-9 place-items-center rounded-lg bg-secondary text-secondary-foreground">
-          {icon}
-        </span>
-        <span>
-          <span className="block font-medium">{label}</span>
-          <span className="mt-1 block text-xs text-muted-foreground">
-            {value}
-          </span>
-        </span>
-      </span>
-      <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-    </Link>
   )
 }
 
@@ -679,19 +602,16 @@ function ServicesSection({
             : "Set the service menu, prices, durations, and active status."}
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-5">
+      <CardContent className="grid gap-3">
         <ServiceForm locale={locale} dict={dict} />
-        <Separator />
-        <div className="grid gap-4 lg:grid-cols-2">
-          {services.map((service) => (
-            <ServiceForm
-              key={service.id}
-              service={service}
-              locale={locale}
-              dict={dict}
-            />
-          ))}
-        </div>
+        {services.map((service) => (
+          <ServiceForm
+            key={service.id}
+            service={service}
+            locale={locale}
+            dict={dict}
+          />
+        ))}
       </CardContent>
     </Card>
   )
@@ -707,20 +627,41 @@ function ServiceForm({
   dict: Dictionary
 }) {
   return (
-    <form
-      action={upsertServiceAction}
-      className="grid gap-4 rounded-lg border border-border bg-background/55 p-4"
-    >
-      <input type="hidden" name="locale" value={locale} />
-      {service ? <input type="hidden" name="id" value={service.id} /> : null}
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="font-heading text-2xl font-semibold">
-          {service ? localizedName(service, locale) : dict.admin.actions.addService}
-        </h3>
-        <Badge variant={service?.active ?? true ? "secondary" : "outline"}>
-          {service?.active ?? true ? dict.common.active : dict.common.inactive}
-        </Badge>
-      </div>
+    <details className={editPanelClassName}>
+      <summary className={editSummaryClassName}>
+        <div className="min-w-0">
+          <h3 className="truncate font-medium">
+            {service
+              ? localizedName(service, locale)
+              : dict.admin.actions.addService}
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {service
+              ? `${service.duration_minutes} ${dict.common.minutes} · ${formatPrice(
+                  service.price_cents,
+                  locale
+                )}`
+              : locale === "zh"
+                ? "新增一个顾客可预约的服务项目"
+                : "Create a bookable service"}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {service ? (
+            <Badge variant={service.active ? "secondary" : "outline"}>
+              {service.active ? dict.common.active : dict.common.inactive}
+            </Badge>
+          ) : (
+            <Plus className="size-4 text-[var(--salon-gold)]" />
+          )}
+          <span className="text-xs font-medium text-muted-foreground">
+            {service ? dict.common.edit : dict.common.create}
+          </span>
+        </div>
+      </summary>
+      <form action={upsertServiceAction} className={editFormClassName}>
+        <input type="hidden" name="locale" value={locale} />
+        {service ? <input type="hidden" name="id" value={service.id} /> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={dict.admin.labels.nameZh} id={`service-name-zh-${service?.id ?? "new"}`}>
           <Input
@@ -799,7 +740,8 @@ function ServiceForm({
       <Button type="submit" className="w-fit">
         {service ? dict.common.save : dict.admin.actions.addService}
       </Button>
-    </form>
+      </form>
+    </details>
   )
 }
 
@@ -824,19 +766,16 @@ function StylistsSection({
             : "Set the people working in the studio. Active stylists can be booked."}
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-5">
+      <CardContent className="grid gap-3">
         <StylistForm locale={locale} dict={dict} />
-        <Separator />
-        <div className="grid gap-4 lg:grid-cols-2">
-          {stylists.map((stylist) => (
-            <StylistForm
-              key={stylist.id}
-              stylist={stylist}
-              locale={locale}
-              dict={dict}
-            />
-          ))}
-        </div>
+        {stylists.map((stylist) => (
+          <StylistForm
+            key={stylist.id}
+            stylist={stylist}
+            locale={locale}
+            dict={dict}
+          />
+        ))}
       </CardContent>
     </Card>
   )
@@ -852,20 +791,55 @@ function StylistForm({
   dict: Dictionary
 }) {
   return (
-    <form
-      action={upsertStylistAction}
-      className="grid gap-4 rounded-lg border border-border bg-background/55 p-4"
-    >
-      <input type="hidden" name="locale" value={locale} />
-      {stylist ? <input type="hidden" name="id" value={stylist.id} /> : null}
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="font-heading text-2xl font-semibold">
-          {stylist ? localizedName(stylist, locale) : dict.admin.actions.addStylist}
-        </h3>
-        <Badge variant={stylist?.active ?? true ? "secondary" : "outline"}>
-          {stylist?.active ?? true ? dict.common.active : dict.common.inactive}
-        </Badge>
-      </div>
+    <details className={editPanelClassName}>
+      <summary className={editSummaryClassName}>
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-secondary text-secondary-foreground">
+            {stylist?.photo_url ? (
+              <Image
+                src={stylist.photo_url}
+                alt={localizedName(stylist, locale)}
+                width={44}
+                height={44}
+                className="size-11 object-cover"
+              />
+            ) : (
+              <Scissors className="size-4" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <h3 className="truncate font-medium">
+              {stylist
+                ? localizedName(stylist, locale)
+                : dict.admin.actions.addStylist}
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {stylist
+                ? `${stylist.appointment_interval_minutes} ${dict.common.minutes} · ${
+                    locale === "zh" ? "预约间隔" : "slot interval"
+                  }`
+                : locale === "zh"
+                  ? "新增一位可预约的发型师"
+                  : "Create a bookable stylist"}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {stylist ? (
+            <Badge variant={stylist.active ? "secondary" : "outline"}>
+              {stylist.active ? dict.common.active : dict.common.inactive}
+            </Badge>
+          ) : (
+            <Plus className="size-4 text-[var(--salon-gold)]" />
+          )}
+          <span className="text-xs font-medium text-muted-foreground">
+            {stylist ? dict.common.edit : dict.common.create}
+          </span>
+        </div>
+      </summary>
+      <form action={upsertStylistAction} className={editFormClassName}>
+        <input type="hidden" name="locale" value={locale} />
+        {stylist ? <input type="hidden" name="id" value={stylist.id} /> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={dict.admin.labels.nameZh} id={`stylist-name-zh-${stylist?.id ?? "new"}`}>
           <Input
@@ -969,7 +943,8 @@ function StylistForm({
       <Button type="submit" className="w-fit">
         {stylist ? dict.common.save : dict.admin.actions.addStylist}
       </Button>
-    </form>
+      </form>
+    </details>
   )
 }
 
@@ -996,24 +971,21 @@ function AvailabilitySection({
             : "Set each stylist's weekly bookable days and hours. Turning a day off makes it a weekly rest day."}
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-5">
+      <CardContent className="grid gap-3">
         <AvailabilityForm
           stylists={stylists}
           locale={locale}
           dict={dict}
         />
-        <Separator />
-        <div className="grid gap-4 lg:grid-cols-2">
-          {availability.map((item) => (
-            <AvailabilityForm
-              key={item.id}
-              availability={item}
-              stylists={stylists}
-              locale={locale}
-              dict={dict}
-            />
-          ))}
-        </div>
+        {availability.map((item) => (
+          <AvailabilityForm
+            key={item.id}
+            availability={item}
+            stylists={stylists}
+            locale={locale}
+            dict={dict}
+          />
+        ))}
       </CardContent>
     </Card>
   )
@@ -1033,23 +1005,45 @@ function AvailabilityForm({
   const selectedStylist =
     stylists.find((stylist) => stylist.id === availability?.stylist_id) ??
     stylists[0]
+  const title = availability
+    ? `${selectedStylist ? localizedName(selectedStylist, locale) : "-"} · ${
+        dict.weekdays.long[availability.day_of_week]
+      }`
+    : dict.admin.actions.addAvailability
 
   return (
-    <form
-      action={upsertAvailabilityAction}
-      className="grid gap-4 rounded-lg border border-border bg-background/55 p-4"
-    >
-      <input type="hidden" name="locale" value={locale} />
-      {availability ? (
-        <input type="hidden" name="id" value={availability.id} />
-      ) : null}
-      <h3 className="font-heading text-2xl font-semibold">
-        {availability
-          ? `${selectedStylist ? localizedName(selectedStylist, locale) : "-"} · ${
-              dict.weekdays.long[availability.day_of_week]
-            }`
-          : dict.admin.actions.addAvailability}
-      </h3>
+    <details className={editPanelClassName}>
+      <summary className={editSummaryClassName}>
+        <div className="min-w-0">
+          <h3 className="truncate font-medium">{title}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {availability
+              ? `${formatTime(availability.start_time)}-${formatTime(
+                  availability.end_time
+                )}`
+              : locale === "zh"
+                ? "新增一个每周可预约时间"
+                : "Create a weekly bookable window"}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {availability ? (
+            <Badge variant={availability.active ? "secondary" : "outline"}>
+              {availability.active ? dict.common.active : dict.common.inactive}
+            </Badge>
+          ) : (
+            <Plus className="size-4 text-[var(--salon-gold)]" />
+          )}
+          <span className="text-xs font-medium text-muted-foreground">
+            {availability ? dict.common.edit : dict.common.create}
+          </span>
+        </div>
+      </summary>
+      <form action={upsertAvailabilityAction} className={editFormClassName}>
+        <input type="hidden" name="locale" value={locale} />
+        {availability ? (
+          <input type="hidden" name="id" value={availability.id} />
+        ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={dict.admin.labels.stylist} id={`availability-stylist-${availability?.id ?? "new"}`}>
           <select
@@ -1112,7 +1106,8 @@ function AvailabilityForm({
       <Button type="submit" className="w-fit">
         {availability ? dict.common.save : dict.admin.actions.addAvailability}
       </Button>
-    </form>
+      </form>
+    </details>
   )
 }
 
@@ -1140,64 +1135,73 @@ function TimeOffSection({
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
-        <form
-          action={addTimeOffAction}
-          className="grid gap-4 rounded-lg border border-border bg-background/55 p-4"
-        >
-          <input type="hidden" name="locale" value={locale} />
-          <h3 className="flex items-center gap-2 font-heading text-2xl font-semibold">
-            <Plus className="size-5 text-[var(--salon-gold)]" />
-            {dict.admin.actions.addTimeOff}
-          </h3>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label={dict.admin.labels.stylist} id="time-off-stylist-new">
-              <select
-                id="time-off-stylist-new"
-                name="stylistId"
-                className={selectClassName}
-                required
-              >
-                {stylists.map((stylist) => (
-                  <option key={stylist.id} value={stylist.id}>
-                    {localizedName(stylist, locale)}
-                  </option>
-                ))}
-              </select>
+        <details className={editPanelClassName}>
+          <summary className={editSummaryClassName}>
+            <div>
+              <h3 className="font-medium">{dict.admin.actions.addTimeOff}</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {locale === "zh"
+                  ? "设置某天全天或部分时间不可预约"
+                  : "Block a full day or part of a day"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <Plus className="size-4 text-[var(--salon-gold)]" />
+              {dict.common.create}
+            </div>
+          </summary>
+          <form action={addTimeOffAction} className={editFormClassName}>
+            <input type="hidden" name="locale" value={locale} />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label={dict.admin.labels.stylist} id="time-off-stylist-new">
+                <select
+                  id="time-off-stylist-new"
+                  name="stylistId"
+                  className={selectClassName}
+                  required
+                >
+                  {stylists.map((stylist) => (
+                    <option key={stylist.id} value={stylist.id}>
+                      {localizedName(stylist, locale)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label={dict.common.date} id="time-off-date-new">
+                <Input id="time-off-date-new" name="offDate" type="date" required />
+              </Field>
+              <Field label={dict.common.startTime} id="time-off-start-new">
+                <Input
+                  id="time-off-start-new"
+                  name="startTime"
+                  type="time"
+                  step={1800}
+                  defaultValue="10:00"
+                />
+              </Field>
+              <Field label={dict.common.endTime} id="time-off-end-new">
+                <Input
+                  id="time-off-end-new"
+                  name="endTime"
+                  type="time"
+                  step={1800}
+                  defaultValue="19:00"
+                />
+              </Field>
+            </div>
+            <ActiveCheckbox
+              name="allDay"
+              label={dict.admin.labels.allDay}
+              defaultChecked
+            />
+            <Field label={dict.admin.labels.reason} id="time-off-reason-new">
+              <Input id="time-off-reason-new" name="reason" />
             </Field>
-            <Field label={dict.common.date} id="time-off-date-new">
-              <Input id="time-off-date-new" name="offDate" type="date" required />
-            </Field>
-            <Field label={dict.common.startTime} id="time-off-start-new">
-              <Input
-                id="time-off-start-new"
-                name="startTime"
-                type="time"
-                step={1800}
-                defaultValue="10:00"
-              />
-            </Field>
-            <Field label={dict.common.endTime} id="time-off-end-new">
-              <Input
-                id="time-off-end-new"
-                name="endTime"
-                type="time"
-                step={1800}
-                defaultValue="19:00"
-              />
-            </Field>
-          </div>
-          <ActiveCheckbox
-            name="allDay"
-            label={dict.admin.labels.allDay}
-            defaultChecked
-          />
-          <Field label={dict.admin.labels.reason} id="time-off-reason-new">
-            <Input id="time-off-reason-new" name="reason" />
-          </Field>
-          <Button type="submit" className="w-fit">
-            {dict.admin.actions.addTimeOff}
-          </Button>
-        </form>
+            <Button type="submit" className="w-fit">
+              {dict.admin.actions.addTimeOff}
+            </Button>
+          </form>
+        </details>
 
         {timeOff.length ? (
           <Table>
