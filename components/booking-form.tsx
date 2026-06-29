@@ -23,6 +23,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -62,9 +69,10 @@ export function BookingForm({
   const [stylistId, setStylistId] = useState(stylists[0]?.id ?? "")
   const [appointmentDate, setAppointmentDate] = useState(getTodayInputValue())
   const [selectedSlot, setSelectedSlot] = useState("")
-  const [slots, setSlots] = useState<string[]>([])
+  const [slotsByDate, setSlotsByDate] = useState<Record<string, string[]>>({})
   const [slotsLoading, setSlotsLoading] = useState(false)
   const [slotsError, setSlotsError] = useState(false)
+  const [timeDrawerOpen, setTimeDrawerOpen] = useState(false)
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [submittedSnapshot, setSubmittedSnapshot] = useState<string | null>(
     null
@@ -78,12 +86,19 @@ export function BookingForm({
     () => stylists.find((stylist) => stylist.id === stylistId) ?? null,
     [stylistId, stylists]
   )
-  const weekDates = useMemo(
-    () => getWeekDates(appointmentDate),
+  const weekStartValue = useMemo(
+    () => getWeekStartInputValue(appointmentDate),
     [appointmentDate]
   )
+  const weekDates = useMemo(() => getWeekDates(weekStartValue), [weekStartValue])
+  const weekDateValues = useMemo(
+    () => weekDates.map((date) => dateInputFromDate(date)),
+    [weekDates]
+  )
+  const weekDateValuesKey = weekDateValues.join(",")
   const todayValue = getTodayInputValue()
   const bookingFormId = "salon-booking-form"
+  const slots = slotsByDate[appointmentDate] ?? []
   const bookingSnapshot = `${serviceId}:${stylistId}:${appointmentDate}:${selectedSlot}`
   const bookingSucceededForSelection =
     state.status === "success" && submittedSnapshot === bookingSnapshot
@@ -98,9 +113,12 @@ export function BookingForm({
         ? formatTime(selectedSlot)
         : ""
 
-  function updateAppointmentDate(value: string) {
+  function updateAppointmentDate(value: string, openDrawer = false) {
     setAppointmentDate(value)
     setSelectedSlot("")
+    if (openDrawer) {
+      setTimeDrawerOpen(true)
+    }
   }
 
   function navigateWeek(direction: -1 | 1) {
@@ -118,44 +136,56 @@ export function BookingForm({
   }, [router, state.status])
 
   useEffect(() => {
-    if (!serviceId || !stylistId || !appointmentDate) {
+    if (!serviceId || !stylistId || !weekDateValuesKey) {
       return
     }
 
     const controller = new AbortController()
-    const search = new URLSearchParams({
-      serviceId,
-      stylistId,
-      date: appointmentDate,
-    })
+    const dateValues = weekDateValuesKey.split(",").filter(Boolean)
 
     Promise.resolve()
       .then(() => {
         if (!controller.signal.aborted) {
           setSlotsLoading(true)
           setSlotsError(false)
-          setSlots([])
+          setSlotsByDate({})
         }
       })
-      .then(() =>
-        fetch(`/api/slots?${search.toString()}`, {
-          signal: controller.signal,
-        })
-      )
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Unable to load slots")
-        }
+      .then(async () => {
+        const entries = await Promise.all(
+          dateValues.map(async (date) => {
+            if (date < todayValue) {
+              return [date, []] as const
+            }
 
-        return response.json()
+            const search = new URLSearchParams({
+              serviceId,
+              stylistId,
+              date,
+            })
+            const response = await fetch(`/api/slots?${search.toString()}`, {
+              signal: controller.signal,
+            })
+
+            if (!response.ok) {
+              throw new Error("Unable to load slots")
+            }
+
+            const data = (await response.json()) as { slots?: string[] }
+
+            return [date, data.slots ?? []] as const
+          })
+        )
+
+        return Object.fromEntries(entries)
       })
-      .then((data: { slots?: string[] }) => {
-        setSlots(data.slots ?? [])
+      .then((nextSlotsByDate) => {
+        setSlotsByDate(nextSlotsByDate)
         setSlotsError(false)
       })
       .catch(() => {
         if (!controller.signal.aborted) {
-          setSlots([])
+          setSlotsByDate({})
           setSlotsError(true)
         }
       })
@@ -166,7 +196,7 @@ export function BookingForm({
       })
 
     return () => controller.abort()
-  }, [appointmentDate, serviceId, stylistId])
+  }, [serviceId, stylistId, todayValue, weekDateValuesKey])
 
   return (
     <Card className="border-border/80 bg-card/95 shadow-[0_18px_50px_rgba(45,52,54,0.08)]">
@@ -180,6 +210,7 @@ export function BookingForm({
           <input type="hidden" name="locale" value={locale} />
           <input type="hidden" name="serviceId" value={serviceId} />
           <input type="hidden" name="stylistId" value={stylistId} />
+          <input type="hidden" name="appointmentDate" value={appointmentDate} />
           <input
             type="hidden"
             name="appointmentTime"
@@ -250,10 +281,7 @@ export function BookingForm({
 
             <div className="border-b border-border bg-secondary/25">
               <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-3">
-                <Label
-                  htmlFor="appointment-date"
-                  className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground"
-                >
+                <Label className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {dict.booking.fields.appointmentDate} ·{" "}
                   {formatTimelineDate(appointmentDate, locale)}
                 </Label>
@@ -281,21 +309,31 @@ export function BookingForm({
               <div className="grid grid-cols-7 gap-1 px-3 pb-3">
                 {weekDates.map((date) => {
                   const value = dateInputFromDate(date)
+                  const dateSlots = slotsByDate[value] ?? []
                   const active = value === appointmentDate
                   const isToday = value === todayValue
-                  const disabled = value < todayValue
+                  const unavailable =
+                    !slotsLoading && !slotsError && dateSlots.length === 0
+                  const disabled = value < todayValue || unavailable
 
                   return (
                     <button
                       key={value}
                       type="button"
                       disabled={disabled}
-                      onClick={() => updateAppointmentDate(value)}
+                      onClick={() => updateAppointmentDate(value, true)}
+                      aria-label={`${formatTimelineDate(value, locale)} ${
+                        unavailable
+                          ? dict.booking.timeline.dateUnavailable
+                          : `${dateSlots.length} ${dict.booking.timeline.available}`
+                      }`}
                       className={cn(
                         "relative flex min-h-16 flex-col items-center justify-center rounded-md border px-1 py-2 text-center transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-35",
-                        active
+                        active && !unavailable
                           ? "border-primary bg-primary text-primary-foreground"
-                          : "border-transparent bg-transparent text-muted-foreground hover:border-border hover:bg-card/70",
+                          : unavailable
+                            ? "border-border/50 bg-muted/35 text-muted-foreground"
+                            : "border-transparent bg-transparent text-muted-foreground hover:border-border hover:bg-card/70",
                         !active && isToday && "text-foreground"
                       )}
                     >
@@ -316,8 +354,10 @@ export function BookingForm({
                         {active
                           ? slotsLoading
                             ? "..."
-                            : slots.length
-                          : ""}
+                            : dateSlots.length
+                          : slotsLoading
+                            ? ""
+                            : dateSlots.length || dict.common.none}
                       </span>
                       {isToday && !active ? (
                         <span className="absolute bottom-1 size-1 rounded-full bg-foreground" />
@@ -326,140 +366,165 @@ export function BookingForm({
                   )
                 })}
               </div>
-              <div className="px-4 pb-3">
-                <Input
-                  id="appointment-date"
-                  type="date"
-                  name="appointmentDate"
-                  min={todayValue}
-                  value={appointmentDate}
-                  onChange={(event) => updateAppointmentDate(event.target.value)}
-                  required
-                  className="h-8 max-w-40 bg-card/70 text-xs"
-                />
-              </div>
             </div>
           </section>
 
           <div className="grid gap-3">
             <Label>{dict.booking.fields.appointmentTime}</Label>
-            <div className="rounded-lg border border-border bg-background/55 p-0">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-card/75 px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium">
-                    {dict.booking.timeline.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatTimelineDate(appointmentDate, locale)}
-                  </p>
-                </div>
-                {selectedSlotRange ? (
-                  <BadgeLike label={dict.booking.timeline.selected} value={selectedSlotRange} />
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    {dict.booking.timeline.noSelection}
-                  </span>
-                )}
+            <div className="flex flex-col gap-3 rounded-lg border border-border bg-background/55 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">
+                  {selectedSlotRange || dict.booking.timeline.noSelection}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {formatTimelineDate(appointmentDate, locale)} ·{" "}
+                  {slotsLoading
+                    ? dict.booking.timeline.loading
+                    : `${slots.length} ${dict.booking.timeline.available}`}
+                </p>
               </div>
-              {slotsLoading ? (
-                <div
-                  className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-card/60 p-4 text-sm text-muted-foreground"
-                  aria-live="polite"
-                >
-                  <Clock3 className="size-4 text-[var(--salon-gold)]" />
-                  {dict.booking.timeline.loading}
-                </div>
-              ) : slotsError ? (
-                <div
-                  className="rounded-lg border border-dashed border-destructive/30 bg-card/60 p-4"
-                  aria-live="polite"
-                >
-                  <p className="text-sm font-medium text-destructive">
-                    {dict.common.error}
-                  </p>
-                </div>
-              ) : slots.length ? (
-                <ol
-                  className="grid gap-0"
-                  aria-label={dict.booking.timeline.title}
-                  role="radiogroup"
-                >
-                  {slots.map((slot) => {
-                    const isSelected = selectedSlot === slot
-                    const slotRange = selectedService
-                      ? formatSlotRange(slot, selectedService.duration_minutes)
-                      : formatTime(slot)
-
-                    return (
-                      <li
-                        key={slot}
-                        className="grid grid-cols-[3.75rem_1fr] gap-3 last:[&_[data-slot-line]]:hidden"
-                      >
-                        <div
-                          className="flex flex-col items-center"
-                          aria-hidden="true"
-                        >
-                          <span
-                            className={cn(
-                              "grid size-10 place-items-center rounded-full border text-xs font-semibold transition-colors",
-                              isSelected
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "border-border bg-card text-muted-foreground"
-                            )}
-                          >
-                            {formatTime(slot)}
-                          </span>
-                          <span
-                            data-slot-line
-                            className="my-2 min-h-4 w-px flex-1 bg-border"
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          role="radio"
-                          aria-checked={isSelected}
-                          onClick={() => setSelectedSlot(slot)}
-                          className={cn(
-                            "mb-3 h-auto min-h-16 w-full justify-between gap-3 whitespace-normal rounded-lg border px-3 py-3 text-left transition-all",
-                            isSelected
-                              ? "border-primary bg-primary/15 shadow-[0_10px_26px_rgba(212,175,55,0.16)] hover:bg-primary/20"
-                              : "border-border bg-card/80 hover:border-primary/50 hover:bg-secondary/55"
-                          )}
-                        >
-                          <span className="min-w-0">
-                            <span className="block text-sm font-semibold text-foreground">
-                              {slotRange}
-                            </span>
-                            <span className="mt-1 block text-xs text-muted-foreground">
-                              {dict.booking.timeline.available}
-                            </span>
-                          </span>
-                          {isSelected ? (
-                            <CheckCircle2 className="size-5 shrink-0 text-[var(--salon-gold)]" />
-                          ) : (
-                            <Clock3 className="size-5 shrink-0 text-muted-foreground" />
-                          )}
-                        </Button>
-                      </li>
-                    )
-                  })}
-                </ol>
-              ) : (
-                <div
-                  className="rounded-lg border border-dashed border-border bg-card/60 p-4"
-                  aria-live="polite"
-                >
-                  <p className="text-sm font-medium">
-                    {dict.booking.timeline.emptyTitle}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {dict.booking.messages.noSlots}
-                  </p>
-                </div>
-              )}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={slotsLoading || slotsError || !slots.length}
+                onClick={() => setTimeDrawerOpen(true)}
+                className="w-full sm:w-auto"
+              >
+                <Clock3 data-icon="inline-start" />
+                {dict.booking.timeline.chooseTime}
+              </Button>
             </div>
           </div>
+
+          <Drawer open={timeDrawerOpen} onOpenChange={setTimeDrawerOpen}>
+            <DrawerContent>
+              <DrawerHeader>
+                <DrawerTitle>{dict.booking.timeline.drawerTitle}</DrawerTitle>
+                <DrawerDescription>
+                  {formatTimelineDate(appointmentDate, locale)} ·{" "}
+                  {selectedService
+                    ? locale === "zh"
+                      ? selectedService.name_zh
+                      : selectedService.name_en
+                    : "-"}
+                </DrawerDescription>
+              </DrawerHeader>
+
+              <div className="grid gap-4">
+                {selectedSlotRange ? (
+                  <BadgeLike
+                    label={dict.booking.timeline.selected}
+                    value={selectedSlotRange}
+                  />
+                ) : (
+                  <p className="rounded-lg border border-dashed border-border bg-background/60 p-3 text-sm text-muted-foreground">
+                    {dict.booking.timeline.noSelection}
+                  </p>
+                )}
+
+                {slotsLoading ? (
+                  <div
+                    className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-card/60 p-4 text-sm text-muted-foreground"
+                    aria-live="polite"
+                  >
+                    <Clock3 className="size-4 text-[var(--salon-gold)]" />
+                    {dict.booking.timeline.loading}
+                  </div>
+                ) : slotsError ? (
+                  <div
+                    className="rounded-lg border border-dashed border-destructive/30 bg-card/60 p-4"
+                    aria-live="polite"
+                  >
+                    <p className="text-sm font-medium text-destructive">
+                      {dict.common.error}
+                    </p>
+                  </div>
+                ) : slots.length ? (
+                  <ol
+                    className="grid gap-0"
+                    aria-label={dict.booking.timeline.title}
+                    role="radiogroup"
+                  >
+                    {slots.map((slot) => {
+                      const isSelected = selectedSlot === slot
+                      const slotRange = selectedService
+                        ? formatSlotRange(slot, selectedService.duration_minutes)
+                        : formatTime(slot)
+
+                      return (
+                        <li
+                          key={slot}
+                          className="grid grid-cols-[3.75rem_1fr] gap-3 last:[&_[data-slot-line]]:hidden"
+                        >
+                          <div
+                            className="flex flex-col items-center"
+                            aria-hidden="true"
+                          >
+                            <span
+                              className={cn(
+                                "grid size-10 place-items-center rounded-full border text-xs font-semibold transition-colors",
+                                isSelected
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border bg-card text-muted-foreground"
+                              )}
+                            >
+                              {formatTime(slot)}
+                            </span>
+                            <span
+                              data-slot-line
+                              className="my-2 min-h-4 w-px flex-1 bg-border"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            role="radio"
+                            aria-checked={isSelected}
+                            onClick={() => {
+                              setSelectedSlot(slot)
+                              setTimeDrawerOpen(false)
+                            }}
+                            className={cn(
+                              "mb-3 h-auto min-h-16 w-full justify-between gap-3 whitespace-normal rounded-lg border px-3 py-3 text-left transition-all",
+                              isSelected
+                                ? "border-primary bg-primary/15 shadow-[0_10px_26px_rgba(212,175,55,0.16)] hover:bg-primary/20"
+                                : "border-border bg-card/80 hover:border-primary/50 hover:bg-secondary/55"
+                            )}
+                          >
+                            <span className="min-w-0">
+                              <span className="block text-sm font-semibold text-foreground">
+                                {slotRange}
+                              </span>
+                              <span className="mt-1 block text-xs text-muted-foreground">
+                                {dict.booking.timeline.available}
+                              </span>
+                            </span>
+                            {isSelected ? (
+                              <CheckCircle2 className="size-5 shrink-0 text-[var(--salon-gold)]" />
+                            ) : (
+                              <Clock3 className="size-5 shrink-0 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </li>
+                      )
+                    })}
+                  </ol>
+                ) : (
+                  <div
+                    className="rounded-lg border border-dashed border-border bg-card/60 p-4"
+                    aria-live="polite"
+                  >
+                    <p className="text-sm font-medium">
+                      {dict.booking.timeline.emptyTitle}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {dict.booking.messages.noSlots}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </DrawerContent>
+          </Drawer>
 
           <div className="rounded-lg border border-border bg-secondary/45 p-4">
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -802,4 +867,12 @@ function getWeekDates(value: string) {
   const monday = addDays(selectedDate, mondayOffset)
 
   return Array.from({ length: 7 }, (_, index) => addDays(monday, index))
+}
+
+function getWeekStartInputValue(value: string) {
+  const selectedDate = parseDateInput(value) ?? new Date()
+  const day = selectedDate.getDay()
+  const mondayOffset = day === 0 ? -6 : 1 - day
+
+  return dateInputFromDate(addDays(selectedDate, mondayOffset))
 }
