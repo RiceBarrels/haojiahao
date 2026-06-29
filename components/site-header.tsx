@@ -52,6 +52,13 @@ export function SiteHeader({ locale, dict, session }: SiteHeaderProps) {
             {dict.publicSite.nav.services}
           </Link>
           <Link
+            href={`/${locale}/private-hair-stylist-near`}
+            className={buttonVariants({ variant: "ghost", size: "sm" })}
+          >
+            <MapPin data-icon="inline-start" />
+            {locale === "zh" ? "服务区域" : "Areas"}
+          </Link>
+          <Link
             href={`/${locale}/booking`}
             className={buttonVariants({ variant: "ghost", size: "sm" })}
           >

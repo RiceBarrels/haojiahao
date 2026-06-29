@@ -13,7 +13,9 @@ import {
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { ScrollReveal, ScrollRevealSection } from "@/components/home-scroll-motion"
 import { getPublicSalonData } from "@/lib/data"
+import { localSeoPages, localizedValue } from "@/lib/local-seo"
 import {
   formatPrice,
   getDictionary,
@@ -46,7 +48,7 @@ export default async function HomePage({ params }: HomePageProps) {
 
   return (
     <main>
-      <section className="relative isolate overflow-hidden">
+      <ScrollRevealSection className="relative isolate overflow-hidden">
         <div className="absolute inset-0 -z-10">
           <Image
             src="/salon-hero.png"
@@ -104,9 +106,9 @@ export default async function HomePage({ params }: HomePageProps) {
             </div>
           </div>
         </div>
-      </section>
+      </ScrollRevealSection>
 
-      <section id="services" className="bg-card/55 py-16 sm:py-20">
+      <ScrollRevealSection id="services" className="bg-card/55 py-16 sm:py-20">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
@@ -125,34 +127,36 @@ export default async function HomePage({ params }: HomePageProps) {
             </Link>
           </div>
           <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {services.map((service) => (
-              <Card key={service.id} className="border-border/80 bg-card">
-                <CardContent className="grid gap-4 p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <h3 className="font-heading text-2xl font-semibold">
-                      {serviceName(service, locale)}
-                    </h3>
-                    <span className="text-sm font-semibold text-foreground">
-                      {formatPrice(service.price_cents, locale)}
-                    </span>
-                  </div>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    {locale === "zh"
-                      ? service.description_zh
-                      : service.description_en}
-                  </p>
-                  <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Clock className="size-4 text-[var(--salon-gold)]" />
-                    {service.duration_minutes} {dict.common.minutes}
-                  </p>
-                </CardContent>
-              </Card>
+            {services.map((service, index) => (
+              <ScrollReveal key={service.id} delay={index * 0.04}>
+                <Card className="h-full border-border/80 bg-card">
+                  <CardContent className="grid gap-4 p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <h3 className="font-heading text-2xl font-semibold">
+                        {serviceName(service, locale)}
+                      </h3>
+                      <span className="text-sm font-semibold text-foreground">
+                        {formatPrice(service.price_cents, locale)}
+                      </span>
+                    </div>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      {locale === "zh"
+                        ? service.description_zh
+                        : service.description_en}
+                    </p>
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Clock className="size-4 text-[var(--salon-gold)]" />
+                      {service.duration_minutes} {dict.common.minutes}
+                    </p>
+                  </CardContent>
+                </Card>
+              </ScrollReveal>
             ))}
           </div>
         </div>
-      </section>
+      </ScrollRevealSection>
 
-      <section className="py-16 sm:py-20">
+      <ScrollRevealSection className="py-16 sm:py-20">
         <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
           <div>
             <h2 className="font-heading text-4xl font-semibold">
@@ -163,38 +167,42 @@ export default async function HomePage({ params }: HomePageProps) {
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            {stylists.map((stylist) => (
-              <Card key={stylist.id} className="border-border/80 bg-card">
-                <CardContent className="p-5">
-                  {stylist.photo_url ? (
-                    <div className="relative mb-4 aspect-[4/3] overflow-hidden rounded-lg bg-secondary">
-                      <Image
-                        src={stylist.photo_url}
-                        alt={locale === "zh" ? stylist.name_zh : stylist.name_en}
-                        fill
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 360px"
-                        className="object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="mb-4 grid size-12 place-items-center rounded-lg bg-secondary text-secondary-foreground">
-                      <Scissors className="size-5" />
-                    </div>
-                  )}
-                  <h3 className="font-heading text-2xl font-semibold">
-                    {locale === "zh" ? stylist.name_zh : stylist.name_en}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {locale === "zh" ? stylist.bio_zh : stylist.bio_en}
-                  </p>
-                </CardContent>
-              </Card>
+            {stylists.map((stylist, index) => (
+              <ScrollReveal key={stylist.id} delay={index * 0.05}>
+                <Card className="h-full border-border/80 bg-card">
+                  <CardContent className="p-5">
+                    {stylist.photo_url ? (
+                      <div className="relative mb-4 aspect-[4/3] overflow-hidden rounded-lg bg-secondary">
+                        <Image
+                          src={stylist.photo_url}
+                          alt={
+                            locale === "zh" ? stylist.name_zh : stylist.name_en
+                          }
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 360px"
+                          className="object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="mb-4 grid size-12 place-items-center rounded-lg bg-secondary text-secondary-foreground">
+                        <Scissors className="size-5" />
+                      </div>
+                    )}
+                    <h3 className="font-heading text-2xl font-semibold">
+                      {locale === "zh" ? stylist.name_zh : stylist.name_en}
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      {locale === "zh" ? stylist.bio_zh : stylist.bio_en}
+                    </p>
+                  </CardContent>
+                </Card>
+              </ScrollReveal>
             ))}
           </div>
         </div>
-      </section>
+      </ScrollRevealSection>
 
-      <section className="bg-secondary/55 py-16 sm:py-20">
+      <ScrollRevealSection className="bg-secondary/55 py-16 sm:py-20">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
             <Star className="size-5 fill-[var(--salon-gold)] text-[var(--salon-gold)]" />
@@ -203,18 +211,68 @@ export default async function HomePage({ params }: HomePageProps) {
             </h2>
           </div>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
-            {testimonials[locale].map((quote) => (
-              <Card key={quote} className="border-border/80 bg-card">
-                <CardContent className="p-5 text-sm leading-7 text-muted-foreground">
-                  &ldquo;{quote}&rdquo;
-                </CardContent>
-              </Card>
+            {testimonials[locale].map((quote, index) => (
+              <ScrollReveal key={quote} delay={index * 0.05}>
+                <Card className="h-full border-border/80 bg-card">
+                  <CardContent className="p-5 text-sm leading-7 text-muted-foreground">
+                    &ldquo;{quote}&rdquo;
+                  </CardContent>
+                </Card>
+              </ScrollReveal>
             ))}
           </div>
         </div>
-      </section>
+      </ScrollRevealSection>
 
-      <section id="contact" className="py-16 sm:py-20">
+      <ScrollRevealSection className="py-16 sm:py-20">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div>
+              <h2 className="font-heading text-4xl font-semibold">
+                {locale === "zh" ? "附近服务区域" : "Nearby service areas"}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                {locale === "zh"
+                  ? "围绕 155 Wolfpit Ave, Norwalk, CT 06851，为附近地标和社区创建的预约入口。"
+                  : "Local booking pages around 155 Wolfpit Ave, Norwalk, CT 06851 for nearby landmarks and neighborhoods."}
+              </p>
+            </div>
+            <Link
+              href={`/${locale}/private-hair-stylist-near`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <MapPin data-icon="inline-start" />
+              {locale === "zh" ? "查看全部区域" : "View all areas"}
+            </Link>
+          </div>
+          <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {localSeoPages.slice(0, 3).map((page, index) => (
+              <ScrollReveal key={page.slug} delay={index * 0.05}>
+                <Link
+                  href={`/${locale}/private-hair-stylist-near/${page.slug}`}
+                  className="group block h-full"
+                >
+                  <Card className="h-full border-border/80 bg-card transition-colors group-hover:border-primary/60">
+                    <CardContent className="p-5">
+                      <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
+                        {localizedValue(page.areaLabel, locale)}
+                      </p>
+                      <h3 className="mt-2 font-heading text-2xl font-semibold">
+                        {localizedValue(page.placeName, locale)}
+                      </h3>
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                        {localizedValue(page.metaDescription, locale)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </ScrollReveal>
+            ))}
+          </div>
+        </div>
+      </ScrollRevealSection>
+
+      <ScrollRevealSection id="contact" className="py-16 sm:py-20">
         <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-[1fr_1fr] lg:px-8">
           <div>
             <h2 className="font-heading text-4xl font-semibold">
@@ -241,7 +299,7 @@ export default async function HomePage({ params }: HomePageProps) {
             </a>
           </div>
         </div>
-      </section>
+      </ScrollRevealSection>
     </main>
   )
 }
