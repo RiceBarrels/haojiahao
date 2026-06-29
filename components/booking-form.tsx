@@ -1,12 +1,11 @@
 "use client"
 
 import { useActionState, useEffect, useMemo, useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { CalendarClock, Scissors } from "lucide-react"
 
 import { createAppointmentAction } from "@/app/actions"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,6 +25,7 @@ type BookingFormProps = {
   services: Service[]
   stylists: Stylist[]
   profile: Profile | null
+  customerEmail?: string | null
 }
 
 export function BookingForm({
@@ -34,6 +34,7 @@ export function BookingForm({
   services,
   stylists,
   profile,
+  customerEmail,
 }: BookingFormProps) {
   const router = useRouter()
   const [state, formAction, pending] = useActionState(
@@ -65,7 +66,7 @@ export function BookingForm({
   }, [router, state.status])
 
   useEffect(() => {
-    if (!profile || !serviceId || !stylistId || !appointmentDate) {
+    if (!serviceId || !stylistId || !appointmentDate) {
       return
     }
 
@@ -104,31 +105,7 @@ export function BookingForm({
       })
 
     return () => controller.abort()
-  }, [appointmentDate, profile, serviceId, stylistId])
-
-  if (!profile) {
-    return (
-      <Card className="border-border/80 bg-card/95 shadow-[0_18px_50px_rgba(45,52,54,0.08)]">
-        <CardHeader>
-          <CardTitle className="font-heading text-3xl">
-            {dict.booking.title}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-5">
-          <p className="text-sm leading-6 text-muted-foreground">
-            {dict.auth.messages.signInRequired}
-          </p>
-          <Link
-            href={`/${locale}/auth`}
-            className={buttonVariants({ size: "lg" })}
-          >
-            <CalendarClock data-icon="inline-start" />
-            {dict.publicSite.nav.signIn}
-          </Link>
-        </CardContent>
-      </Card>
-    )
-  }
+  }, [appointmentDate, serviceId, stylistId])
 
   return (
     <Card className="border-border/80 bg-card/95 shadow-[0_18px_50px_rgba(45,52,54,0.08)]">
@@ -232,7 +209,7 @@ export function BookingForm({
             </div>
           </div>
 
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-3">
             <div className="grid gap-2">
               <Label htmlFor="customer-name">
                 {dict.booking.fields.customerName}
@@ -240,8 +217,21 @@ export function BookingForm({
               <Input
                 id="customer-name"
                 name="customerName"
-                defaultValue={profile.display_name ?? ""}
+                defaultValue={profile?.display_name ?? ""}
                 autoComplete="name"
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="customer-email">
+                {dict.booking.fields.customerEmail}
+              </Label>
+              <Input
+                id="customer-email"
+                name="customerEmail"
+                type="email"
+                defaultValue={customerEmail ?? ""}
+                autoComplete="email"
                 required
               />
             </div>
@@ -253,7 +243,7 @@ export function BookingForm({
                 id="customer-phone"
                 name="customerPhone"
                 type="tel"
-                defaultValue={profile.phone ?? ""}
+                defaultValue={profile?.phone ?? ""}
                 autoComplete="tel"
                 required
               />

@@ -1,10 +1,15 @@
 "use client"
 
-import { useActionState, useEffect } from "react"
+import { useActionState, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { LogIn, UserPlus } from "lucide-react"
+import { KeyRound, LogIn, Mail, UserPlus } from "lucide-react"
 
-import { signInAction, signUpAction } from "@/app/actions"
+import {
+  requestPasswordResetAction,
+  signInAction,
+  signUpAction,
+  verifySignUpOtpAction,
+} from "@/app/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,6 +25,7 @@ type AuthPanelProps = {
 
 export function AuthPanel({ locale, dict }: AuthPanelProps) {
   const router = useRouter()
+  const [showPasswordReset, setShowPasswordReset] = useState(false)
   const [signInState, signInFormAction, signInPending] = useActionState(
     signInAction,
     initialActionState
@@ -28,12 +34,20 @@ export function AuthPanel({ locale, dict }: AuthPanelProps) {
     signUpAction,
     initialActionState
   )
+  const [otpState, otpFormAction, otpPending] = useActionState(
+    verifySignUpOtpAction,
+    initialActionState
+  )
+  const [resetState, resetFormAction, resetPending] = useActionState(
+    requestPasswordResetAction,
+    initialActionState
+  )
 
   useEffect(() => {
-    if (signInState.status === "success" || signUpState.status === "success") {
+    if (signInState.status === "success" || otpState.status === "success") {
       router.refresh()
     }
-  }, [router, signInState.status, signUpState.status])
+  }, [router, otpState.status, signInState.status])
 
   return (
     <Card className="border-border/80 bg-card/95 shadow-[0_18px_50px_rgba(45,52,54,0.08)]">
@@ -49,104 +63,186 @@ export function AuthPanel({ locale, dict }: AuthPanelProps) {
             <TabsTrigger value="signup">{dict.auth.signUp}</TabsTrigger>
           </TabsList>
           <TabsContent value="signin">
-            <form action={signInFormAction} className="grid gap-4">
-              <input type="hidden" name="locale" value={locale} />
-              <div className="grid gap-2">
-                <Label htmlFor="signin-email">{dict.auth.email}</Label>
-                <Input
-                  id="signin-email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="signin-password">{dict.auth.password}</Label>
-                <Input
-                  id="signin-password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                />
-              </div>
-              {signInState.message ? (
-                <p
-                  className={
-                    signInState.status === "error"
-                      ? "text-sm text-destructive"
-                      : "text-sm text-foreground"
-                  }
+            {showPasswordReset ? (
+              <form action={resetFormAction} className="grid gap-4">
+                <input type="hidden" name="locale" value={locale} />
+                <div className="grid gap-2">
+                  <Label htmlFor="reset-email">{dict.auth.email}</Label>
+                  <Input
+                    id="reset-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+                {resetState.message ? (
+                  <p
+                    className={
+                      resetState.status === "error"
+                        ? "text-sm text-destructive"
+                        : "text-sm text-foreground"
+                    }
+                  >
+                    {resetState.message}
+                  </p>
+                ) : null}
+                <Button type="submit" size="lg" disabled={resetPending}>
+                  <Mail data-icon="inline-start" />
+                  {dict.auth.requestPasswordReset}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowPasswordReset(false)}
                 >
-                  {signInState.message}
-                </p>
-              ) : null}
-              <Button type="submit" size="lg" disabled={signInPending}>
-                <LogIn data-icon="inline-start" />
-                {dict.auth.signIn}
-              </Button>
-            </form>
+                  {dict.common.back}
+                </Button>
+              </form>
+            ) : (
+              <form action={signInFormAction} className="grid gap-4">
+                <input type="hidden" name="locale" value={locale} />
+                <div className="grid gap-2">
+                  <Label htmlFor="signin-email">{dict.auth.email}</Label>
+                  <Input
+                    id="signin-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="signin-password">{dict.auth.password}</Label>
+                  <Input
+                    id="signin-password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
+                {signInState.message ? (
+                  <p
+                    className={
+                      signInState.status === "error"
+                        ? "text-sm text-destructive"
+                        : "text-sm text-foreground"
+                    }
+                  >
+                    {signInState.message}
+                  </p>
+                ) : null}
+                <Button type="submit" size="lg" disabled={signInPending}>
+                  <LogIn data-icon="inline-start" />
+                  {dict.auth.signIn}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowPasswordReset(true)}
+                >
+                  {dict.auth.forgotPassword}
+                </Button>
+              </form>
+            )}
           </TabsContent>
           <TabsContent value="signup">
-            <form action={signUpFormAction} className="grid gap-4">
-              <input type="hidden" name="locale" value={locale} />
-              <div className="grid gap-2">
-                <Label htmlFor="signup-name">{dict.auth.displayName}</Label>
-                <Input
-                  id="signup-name"
-                  name="displayName"
-                  autoComplete="name"
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="signup-phone">{dict.auth.phone}</Label>
-                <Input
-                  id="signup-phone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="signup-email">{dict.auth.email}</Label>
-                <Input
-                  id="signup-email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="signup-password">{dict.auth.password}</Label>
-                <Input
-                  id="signup-password"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                />
-              </div>
-              {signUpState.message ? (
-                <p
-                  className={
-                    signUpState.status === "error"
-                      ? "text-sm text-destructive"
-                      : "text-sm text-foreground"
-                  }
-                >
+            {signUpState.nextStep === "verifyOtp" && signUpState.email ? (
+              <form action={otpFormAction} className="grid gap-4">
+                <input type="hidden" name="locale" value={locale} />
+                <input type="hidden" name="email" value={signUpState.email} />
+                <p className="text-sm leading-6 text-muted-foreground">
                   {signUpState.message}
                 </p>
-              ) : null}
-              <Button type="submit" size="lg" disabled={signUpPending}>
-                <UserPlus data-icon="inline-start" />
-                {dict.auth.createAccount}
-              </Button>
-            </form>
+                <div className="grid gap-2">
+                  <Label htmlFor="signup-otp">{dict.auth.otpCode}</Label>
+                  <Input
+                    id="signup-otp"
+                    name="token"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    autoComplete="one-time-code"
+                    required
+                  />
+                </div>
+                {otpState.message ? (
+                  <p
+                    className={
+                      otpState.status === "error"
+                        ? "text-sm text-destructive"
+                        : "text-sm text-foreground"
+                    }
+                  >
+                    {otpState.message}
+                  </p>
+                ) : null}
+                <Button type="submit" size="lg" disabled={otpPending}>
+                  <KeyRound data-icon="inline-start" />
+                  {dict.auth.verifyCode}
+                </Button>
+              </form>
+            ) : (
+              <form action={signUpFormAction} className="grid gap-4">
+                <input type="hidden" name="locale" value={locale} />
+                <div className="grid gap-2">
+                  <Label htmlFor="signup-name">{dict.auth.displayName}</Label>
+                  <Input
+                    id="signup-name"
+                    name="displayName"
+                    autoComplete="name"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="signup-phone">{dict.auth.phone}</Label>
+                  <Input
+                    id="signup-phone"
+                    name="phone"
+                    type="tel"
+                    autoComplete="tel"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="signup-email">{dict.auth.email}</Label>
+                  <Input
+                    id="signup-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="signup-password">{dict.auth.password}</Label>
+                  <Input
+                    id="signup-password"
+                    name="password"
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                </div>
+                {signUpState.message ? (
+                  <p
+                    className={
+                      signUpState.status === "error"
+                        ? "text-sm text-destructive"
+                        : "text-sm text-foreground"
+                    }
+                  >
+                    {signUpState.message}
+                  </p>
+                ) : null}
+                <Button type="submit" size="lg" disabled={signUpPending}>
+                  <UserPlus data-icon="inline-start" />
+                  {dict.auth.createAccount}
+                </Button>
+              </form>
+            )}
           </TabsContent>
         </Tabs>
       </CardContent>

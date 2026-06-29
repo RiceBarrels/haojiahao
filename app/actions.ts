@@ -1,11 +1,14 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { z } from "zod"
 
 import { createClient } from "@/lib/supabase/server"
+import { sendReservationEmails } from "@/lib/email/reservation"
 import { getDictionary, toLocale, type Locale } from "@/lib/i18n"
+import { createAdminClient } from "@/lib/supabase/admin"
 import type { ActionState, AppointmentStatus } from "@/lib/types"
 import { initialActionState } from "@/lib/types"
 
@@ -13,7 +16,13 @@ const uuidSchema = z.string().uuid()
 const localizedTextSchema = z.string().trim().min(1).max(120)
 const longTextSchema = z.string().trim().max(600)
 const phoneSchema = z.string().trim().min(7).max(30)
-const timeSchema = z.string().regex(/^\d{2}:\d{2}$/)
+const emailSchema = z.string().trim().email().max(254).toLowerCase()
+const otpSchema = z.string().trim().regex(/^\d{6}$/)
+const timeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{2}:\d{2}(?::\d{2})?$/)
+  .transform((value) => value.slice(0, 5))
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 function actionLocale(formData: FormData): Locale {
@@ -24,6 +33,19 @@ function actionMessage(message: string): ActionState {
   return {
     status: "success",
     message,
+  }
+}
+
+function actionNextStep(
+  message: string,
+  nextStep: ActionState["nextStep"],
+  email: string
+): ActionState {
+  return {
+    status: "success",
+    message,
+    nextStep,
+    email,
   }
 }
 
@@ -69,7 +91,7 @@ export async function signInAction(
   const dict = getDictionary(locale)
   const parsed = z
     .object({
-      email: z.string().trim().email(),
+      email: emailSchema,
       password: z.string().min(6),
     })
     .safeParse(Object.fromEntries(formData))
@@ -101,7 +123,7 @@ export async function signUpAction(
     .object({
       displayName: z.string().trim().min(2).max(80),
       phone: phoneSchema,
-      email: z.string().trim().email(),
+      email: emailSchema,
       password: z.string().min(8).max(72),
     })
     .safeParse(Object.fromEntries(formData))
@@ -126,8 +148,114 @@ export async function signUpAction(
     return actionError(locale, error.message)
   }
 
+  return actionNextStep(
+    dict.auth.messages.otpSent,
+    "verifyOtp",
+    parsed.data.email
+  )
+}
+
+export async function verifySignUpOtpAction(
+  _prevState: ActionState = initialActionState,
+  formData: FormData
+): Promise<ActionState> {
+  void _prevState
+
+  const locale = actionLocale(formData)
+  const dict = getDictionary(locale)
+  const parsed = z
+    .object({
+      email: emailSchema,
+      token: otpSchema,
+    })
+    .safeParse(Object.fromEntries(formData))
+
+  if (!parsed.success) {
+    return actionError(locale, dict.auth.messages.otpFailed)
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.verifyOtp({
+    email: parsed.data.email,
+    token: parsed.data.token,
+    type: "email",
+  })
+
+  if (error) {
+    return actionError(locale, dict.auth.messages.otpFailed)
+  }
+
   revalidatePath("/", "layout")
-  return actionMessage(dict.auth.messages.accountCreated)
+  return actionMessage(dict.auth.messages.otpVerified)
+}
+
+export async function requestPasswordResetAction(
+  _prevState: ActionState = initialActionState,
+  formData: FormData
+): Promise<ActionState> {
+  void _prevState
+
+  const locale = actionLocale(formData)
+  const dict = getDictionary(locale)
+  const parsed = z
+    .object({
+      email: emailSchema,
+    })
+    .safeParse(Object.fromEntries(formData))
+
+  if (!parsed.success) {
+    return actionError(locale, dict.auth.messages.resetPasswordFailed)
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.resetPasswordForEmail(
+    parsed.data.email,
+    {
+      redirectTo: `${await getRequestOrigin()}/${locale}/auth/reset-password`,
+    }
+  )
+
+  if (error) {
+    return actionError(locale, dict.auth.messages.resetPasswordFailed)
+  }
+
+  return actionMessage(dict.auth.messages.resetEmailSent)
+}
+
+export async function updatePasswordAction(
+  _prevState: ActionState = initialActionState,
+  formData: FormData
+): Promise<ActionState> {
+  void _prevState
+
+  const locale = actionLocale(formData)
+  const dict = getDictionary(locale)
+  const parsed = z
+    .object({
+      password: z.string().min(8).max(72),
+      confirmPassword: z.string().min(8).max(72),
+    })
+    .safeParse(Object.fromEntries(formData))
+
+  if (!parsed.success) {
+    return actionError(locale, dict.auth.messages.resetPasswordFailed)
+  }
+
+  if (parsed.data.password !== parsed.data.confirmPassword) {
+    return actionError(locale, dict.auth.messages.passwordsDoNotMatch)
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.updateUser({
+    password: parsed.data.password,
+  })
+
+  if (error) {
+    return actionError(locale, dict.auth.messages.resetPasswordFailed)
+  }
+
+  revalidatePath("/", "layout")
+  return actionMessage(dict.auth.messages.resetPasswordSuccess)
 }
 
 export async function signOutAction(formData: FormData) {
@@ -136,6 +264,71 @@ export async function signOutAction(formData: FormData) {
   await supabase.auth.signOut()
   revalidatePath("/", "layout")
   redirect(`/${locale}`)
+}
+
+async function getRequestOrigin() {
+  const headersList = await headers()
+  const origin = headersList.get("origin")
+
+  if (origin) {
+    return origin
+  }
+
+  const host = headersList.get("x-forwarded-host") || headersList.get("host")
+  const protocol = headersList.get("x-forwarded-proto") || "http"
+
+  return host ? `${protocol}://${host}` : "http://localhost:3000"
+}
+
+async function getAdminNotificationEmails() {
+  const configuredEmails = parseEmailList(
+    process.env.RESEND_NOTIFICATION_EMAILS,
+    process.env.RESEND_NOTIFICATION_EMAIL,
+    process.env.RESEND_FROM_EMAIL
+  )
+  const adminClient = createAdminClient()
+
+  if (!adminClient) {
+    return configuredEmails
+  }
+
+  const { data: profiles, error } = await adminClient
+    .from("profiles")
+    .select("id")
+    .eq("role", "admin")
+
+  if (error || !profiles?.length) {
+    if (error) {
+      console.error("Failed to load admin profiles for reservation email", error)
+    }
+    return configuredEmails
+  }
+
+  const adminEmails = await Promise.all(
+    profiles.map(async (profile) => {
+      const { data, error: userError } =
+        await adminClient.auth.admin.getUserById(profile.id)
+
+      if (userError) {
+        console.error("Failed to load admin user for reservation email", userError)
+      }
+
+      return data.user?.email ?? ""
+    })
+  )
+
+  return parseEmailList(...configuredEmails, ...adminEmails)
+}
+
+function parseEmailList(...values: Array<string | null | undefined>) {
+  return Array.from(
+    new Set(
+      values
+        .flatMap((value) => (value ?? "").split(","))
+        .map((value) => value.trim().toLowerCase())
+        .filter((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+    )
+  )
 }
 
 export async function createAppointmentAction(
@@ -153,6 +346,7 @@ export async function createAppointmentAction(
       appointmentDate: dateSchema,
       appointmentTime: timeSchema,
       customerName: z.string().trim().min(2).max(100),
+      customerEmail: emailSchema,
       customerPhone: phoneSchema,
       note: longTextSchema,
     })
@@ -166,29 +360,64 @@ export async function createAppointmentAction(
   const { data: claimsData } = await supabase.auth.getClaims()
   const userId = claimsData?.claims?.sub
 
-  if (!userId || typeof userId !== "string") {
-    return actionError(locale, dict.auth.messages.signInRequired)
-  }
-
-  const { error } = await supabase.from("appointments").insert({
-    user_id: userId,
+  const appointmentPayload = {
+    user_id: typeof userId === "string" ? userId : null,
     service_id: parsed.data.serviceId,
     stylist_id: parsed.data.stylistId,
     appointment_date: parsed.data.appointmentDate,
     start_time: parsed.data.appointmentTime,
     end_time: parsed.data.appointmentTime,
     customer_name: parsed.data.customerName,
+    customer_email: parsed.data.customerEmail,
     customer_phone: parsed.data.customerPhone,
     note: parsed.data.note,
     status: "pending",
-  })
+  } as const
+
+  const { error } = await supabase.from("appointments").insert(appointmentPayload)
 
   if (error) {
     return actionError(locale, error.message)
   }
 
+  const [serviceResult, stylistResult] = await Promise.all([
+    supabase
+      .from("services")
+      .select("name_zh, name_en, duration_minutes, price_cents")
+      .eq("id", parsed.data.serviceId)
+      .maybeSingle(),
+    supabase
+      .from("stylists")
+      .select("name_zh, name_en")
+      .eq("id", parsed.data.stylistId)
+      .maybeSingle(),
+  ])
+
+  const service = serviceResult.data
+  const stylist = stylistResult.data
+  const emailResult =
+    service && stylist
+      ? await sendReservationEmails({
+          locale,
+          customerName: parsed.data.customerName,
+          customerEmail: parsed.data.customerEmail,
+          customerPhone: parsed.data.customerPhone,
+          serviceName: locale === "zh" ? service.name_zh : service.name_en,
+          stylistName: locale === "zh" ? stylist.name_zh : stylist.name_en,
+          appointmentDate: parsed.data.appointmentDate,
+          appointmentTime: parsed.data.appointmentTime,
+          durationMinutes: service.duration_minutes,
+          priceCents: service.price_cents,
+          note: parsed.data.note,
+        }, await getAdminNotificationEmails())
+      : { sent: false as const, reason: "missing_config" as const }
+
   revalidatePath("/", "layout")
-  return actionMessage(dict.booking.messages.created)
+  return actionMessage(
+    emailResult.sent
+      ? dict.booking.messages.createdWithEmail
+      : dict.booking.messages.createdEmailNotSent
+  )
 }
 
 export async function cancelAppointmentAction(formData: FormData) {

@@ -1,10 +1,9 @@
-import Link from "next/link"
 import { CalendarDays, Clock, Phone, Scissors, XCircle } from "lucide-react"
 
 import { cancelAppointmentAction } from "@/app/actions"
 import { BookingForm } from "@/components/booking-form"
 import { Badge } from "@/components/ui/badge"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -85,14 +84,6 @@ export default async function BookingPage({ params }: BookingPageProps) {
               929-410-9809
             </a>
           </div>
-          {!session.userId ? (
-            <Link
-              href={`/${locale}/auth`}
-              className={buttonVariants({ className: "mt-8 w-fit", size: "lg" })}
-            >
-              {dict.publicSite.nav.signIn}
-            </Link>
-          ) : null}
         </section>
 
         <BookingForm
@@ -101,16 +92,19 @@ export default async function BookingPage({ params }: BookingPageProps) {
           services={salonData.services}
           stylists={salonData.stylists}
           profile={bookingProfile}
+          customerEmail={session.email}
         />
       </div>
 
-      <section className="mx-auto mt-10 w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <AppointmentHistory
-          appointments={appointments}
-          locale={locale}
-          dict={dict}
-        />
-      </section>
+      {session.userId ? (
+        <section className="mx-auto mt-10 w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          <AppointmentHistory
+            appointments={appointments}
+            locale={locale}
+            dict={dict}
+          />
+        </section>
+      ) : null}
     </main>
   )
 }

@@ -26,12 +26,12 @@ export default async function AuthPage({ params }: AuthPageProps) {
             {dict.auth.title}
           </Badge>
           <h1 className="font-heading text-5xl font-semibold leading-none">
-            {locale === "zh" ? "登录后预约" : "Sign in to book"}
+            {locale === "zh" ? "登录与账户" : "Sign in and account"}
           </h1>
           <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
             {locale === "zh"
-              ? "账户用于保存预约记录，管理员账户可以管理服务、发型师、排班和预约状态。"
-              : "Your account keeps booking history. Admin accounts manage services, stylists, schedules, and appointment status."}
+              ? "预约不需要登录。账户用于查看预约记录，管理员账户可以管理服务、发型师、排班和预约状态。"
+              : "Booking does not require sign-in. Accounts keep booking history, and admin accounts manage services, stylists, schedules, and appointment status."}
           </p>
         </section>
 

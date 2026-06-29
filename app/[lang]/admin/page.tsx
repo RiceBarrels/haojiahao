@@ -249,6 +249,7 @@ function AppointmentsSection({
                 <TableHead>{dict.admin.labels.stylist}</TableHead>
                 <TableHead>{dict.admin.labels.appointmentDate}</TableHead>
                 <TableHead>{dict.common.time}</TableHead>
+                <TableHead>{dict.admin.labels.customerEmail}</TableHead>
                 <TableHead>{dict.admin.labels.customerPhone}</TableHead>
                 <TableHead>{dict.common.status}</TableHead>
               </TableRow>
@@ -283,6 +284,7 @@ function AppointmentsSection({
                   </TableCell>
                   <TableCell>{appointment.appointment_date}</TableCell>
                   <TableCell>{formatTime(appointment.start_time)}</TableCell>
+                  <TableCell>{appointment.customer_email}</TableCell>
                   <TableCell>{appointment.customer_phone}</TableCell>
                   <TableCell>
                     <form

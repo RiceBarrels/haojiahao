@@ -78,13 +78,14 @@ create table public.stylist_time_off (
 
 create table public.appointments (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
   stylist_id uuid not null references public.stylists(id),
   service_id uuid not null references public.services(id),
   appointment_date date not null,
   start_time time not null,
   end_time time not null,
   customer_name text not null,
+  customer_email text not null default '',
   customer_phone text not null,
   note text not null default '',
   status public.appointment_status not null default 'pending',
@@ -98,6 +99,7 @@ alter table public.appointments
   foreign key (user_id) references public.profiles(id) on delete cascade;
 
 create index appointments_user_id_idx on public.appointments(user_id);
+create index appointments_customer_email_idx on public.appointments(lower(customer_email));
 create index appointments_service_id_idx on public.appointments(service_id);
 create index appointments_stylist_date_idx on public.appointments(stylist_id, appointment_date);
 create index stylist_availability_lookup_idx

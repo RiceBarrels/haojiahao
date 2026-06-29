@@ -1,6 +1,7 @@
 import { cache } from "react"
 
 import { createClient } from "@/lib/supabase/server"
+import { formatTime } from "@/lib/i18n"
 import type {
   AppointmentWithRelations,
   PublicSalonData,
@@ -99,7 +100,9 @@ export async function getAvailableSlots({
     return []
   }
 
-  return ((data ?? []) as { slot_time: string }[]).map((slot) => slot.slot_time)
+  return ((data ?? []) as { slot_time: string }[]).map((slot) =>
+    formatTime(slot.slot_time)
+  )
 }
 
 export async function getCustomerAppointments(): Promise<
@@ -115,7 +118,7 @@ export async function getCustomerAppointments(): Promise<
   const { data } = await supabase
     .from("appointments")
     .select(
-      "id, user_id, stylist_id, service_id, appointment_date, start_time, end_time, customer_name, customer_phone, note, status, created_at, services(name_zh, name_en, duration_minutes, price_cents), stylists(name_zh, name_en)"
+      "id, user_id, stylist_id, service_id, appointment_date, start_time, end_time, customer_name, customer_email, customer_phone, note, status, created_at, services(name_zh, name_en, duration_minutes, price_cents), stylists(name_zh, name_en)"
     )
     .eq("user_id", userId)
     .order("appointment_date", { ascending: false })
@@ -163,7 +166,7 @@ export async function getAdminDashboardData() {
     supabase
       .from("appointments")
       .select(
-        "id, user_id, stylist_id, service_id, appointment_date, start_time, end_time, customer_name, customer_phone, note, status, created_at, services(name_zh, name_en, duration_minutes, price_cents), stylists(name_zh, name_en), profiles!appointments_user_profile_fkey(display_name, phone)"
+        "id, user_id, stylist_id, service_id, appointment_date, start_time, end_time, customer_name, customer_email, customer_phone, note, status, created_at, services(name_zh, name_en, duration_minutes, price_cents), stylists(name_zh, name_en), profiles!appointments_user_profile_fkey(display_name, phone)"
       )
       .order("appointment_date", { ascending: false })
       .order("start_time", { ascending: true })

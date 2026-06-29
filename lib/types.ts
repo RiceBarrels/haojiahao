@@ -57,13 +57,14 @@ export type StylistTimeOff = {
 
 export type Appointment = {
   id: string
-  user_id: string
+  user_id: string | null
   stylist_id: string
   service_id: string
   appointment_date: string
   start_time: string
   end_time: string
   customer_name: string
+  customer_email: string
   customer_phone: string
   note: string
   status: AppointmentStatus
@@ -95,6 +96,8 @@ export type SessionProfile = {
 export type ActionState = {
   status: "idle" | "success" | "error"
   message: string
+  email?: string
+  nextStep?: "verifyOtp"
   errors?: Record<string, string[]>
 }
 
